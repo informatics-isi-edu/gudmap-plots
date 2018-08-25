@@ -13,16 +13,15 @@
 <script src='/chaise/common/filters.js'></script>
 <script src='/chaise/common/modal.js'></script>
 <script src='/chaise/common/utils.js'></script>
-<script src='vendor/ui-bootstrap-tpls.js'></script>
+<script src='/chaise/scripts/vendor/ui-bootstrap-tpls-2.5.0.min.js'></script>
 <script src='/ermrestjs/ermrest.js'></script>
 <script src='vendor/plotly-latest.min.js'></script>  
 <script src="heatmap.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-  </head>
-  <body ng-controller="HeatmapController">
+</head>
+<body ng-controller="HeatmapController">
   <div ng-repeat="heatmap in heatmaps">  
-      <heatmap heatmap-id="{{heatmap.id}}"></heatmap>
-      </div>
-</div>
+    <heatmap heatmap-id="{{heatmap.id}}" width=1200 x-tick-angle=50 tick-font-family="Courier" tick-font-size=12></heatmap>
+  </div>
 </body>
 </html>
