@@ -1,6 +1,6 @@
 var heatmapApp =
     angular.module('heatmapApp', [
-            'ngSanitize',
+        'ngSanitize',
         'ngCookies',
         'chaise.utils',
         'ermrestjs',
@@ -111,35 +111,138 @@ heatmapApp.controller('HeatmapController', function HeatmapController($scope, $h
     
 });
 
-heatmapApp.directive('heatmap', [function() {
-    function linkFunc(scope, element, attrs) {
-	scope.$watch('heatmaps', function(plots) {
-	    console.log("in linkfunc", element, element[0].attributes['heatmap-id'].nodeValue);	    
-	    if (plots) {
-		for (i=0; i < plots.length; i++) {
-		    if (plots[i].id == element[0].attributes['heatmap-id'].nodeValue) {
-			var layout = {
-			    title: plots[i].title,
-			    xaxis: {tickangle: 90,
-				    tickvals: plots[i].rows.x,
-				    ticktext: plots[i].rows.x},
-			    yaxis: {tickvals: plots[i].rows.y,
-				    ticktext: plots[i].rows.y},
-			    height: 210 + 30 * (plots[i].rows.y.length),
-			    width: 1024
-			};
-			plots[i].rows.colorbar = {
-			    lenmode: "pixels",
-			    len : 100
-			}
-			Plotly.newPlot(element[0], [plots[i].rows], layout);			
-		    }
+heatmapApp.factory('HeatmapUtils', function HeatmapUtils() {
+	/**	 
+	 * @param {object} input : Input parameters of heatmap directive
+	 * @param {number} longestXTick : Length of longest X axis label
+	 * @param {number} lengthY : Number of Y values
+	 * Calculates the height and margins of the heatmap based on the number of y values and length of the longest X label
+	 * so that the labels do not get clipped and the bar height is adjusted accordingly.
+	 * Return an object with all the required layout parameters.
+	 * @example
+	 * {
+	 * 	height: height of the heatmap,
+	 * 	width: width of the heatmap,
+	 * 	margin: {
+	 * 		t: top margin of the heatmap,
+	 * 		r: right margin of the heatmap,
+	 * 		b: bottom margin of the heatmap,
+	 * 		l: left of the heatmap
+	 * 	},
+	 * 	xTickAngle: inclination of x axis labels,
+	 *  yTickAngle: inclination of y axis labels,
+	 * 	tickFont: font to be used in labels
+	 * }
+	 */
+	function getLayoutParams(input, longestXTick, lengthY) {
+		var height;
+		var yTickAngle;
+		var tMargin = 25, rMargin, bMargin, lMargin;
+
+		if(longestXTick <= 18){
+		    height = longestXTick * 8 + lengthY * 10 + 45;
+		    bMargin = 7.8 * longestXTick;
+		} else if(longestXTick <= 22){
+			height = longestXTick * 8.7 + lengthY * 10 + 35;
+			bMargin = 6.9 * longestXTick;
+		} else if(longestXTick <= 30){
+			height = longestXTick * 7.7 + lengthY * 10 + 45;
+			bMargin = 6.7 * longestXTick;
+		} else{			
+			height = longestXTick * 7.2 + lengthY * 10 + 42; 
+			bMargin = 6.3 * longestXTick;
 		}
-	    }
-	});
-    }
-    return {
-	link: linkFunc
-    };
+		
+		if (lengthY == 1) {
+			yTickAngle = -90;
+			lMargin = 30;
+			rMargin = 20;
+		} else {
+			yTickAngle = 0;
+			lMargin = 80;
+			rMargin = 5;
+		}
+
+		var layoutParams = {
+			height: height,
+			width: input.width,
+			margin: {
+				t: tMargin,
+				r: rMargin,
+				b: bMargin,
+				l: lMargin,
+			},
+			xTickAngle: input.xTickAngle,
+			yTickAngle: yTickAngle,
+			tickFont: input.tickFont
+		};
+		return layoutParams;
+	}
+
+	return {
+		getLayoutParams: getLayoutParams
+	};
+});
+
+/**
+ * Directive <heatmap> is used to display a heatmap of a given dataset in (x,y,z) format
+ * It can have following attributes:
+ * @param {number} width: width of the heatmap in pixels. To avoid horizontal scroll should be same as the width of the enclosing iframe
+ * @param {number} xTickAngle: Inclination of the X axis labels
+ * @param {string} tickFontFamily: Font family of the axis labels, both x and y
+ * @param {number} tickFontSize: Font size of the axis labels, both x and y
+ * @example: 
+ * <heatmap heatmap-id="{{heatmap.id}}" width=1200 x-tick-angle=50 tick-font-family="Helvetica" tick-font-size=12>
+ * </heatmap>
+ */
+heatmapApp.directive('heatmap', ['HeatmapUtils', function(HeatmapUtils) {
+	function linkFunc(scope, element, attrs) {
+		scope.$watch('heatmaps', function(plots) {
+			console.log("in linkfunc", element, element[0].attributes['heatmap-id'].nodeValue);
+			if (plots) {
+				for (i=0; i < plots.length; i++) {
+					if (plots[i].id == element[0].attributes['heatmap-id'].nodeValue) {
+						var longestXTick = plots[i].rows.x.reduce(function(a, b) { return a.length > b.length ? a : b;});
+						var inputParams = {
+							width: typeof attrs.width !== "undefined" ? attrs.width : 1200,
+							xTickAngle: typeof attrs.xTickAngle !== "undefined" ? attrs.xTickAngle : 50,
+							tickFont: {
+								family: typeof attrs.tickFontFamily !== "undefined" ? attrs.tickFontFamily : 'Arial',
+								size: typeof attrs.tickFontSize !== "undefined" ? attrs.tickFontSize : 12
+							}
+						};
+						var layoutParams = HeatmapUtils.getLayoutParams(inputParams, longestXTick.length, plots[i].rows.y.length);
+
+						var layout = {
+							title: plots[i].title,
+							xaxis: {
+								tickangle: layoutParams.xTickAngle,
+								tickfont: layoutParams.tickFont,
+								tickvals: plots[i].rows.x,
+								ticktext: plots[i].rows.x,
+							},
+							yaxis: {
+								tickangle: layoutParams.yTickAngle,
+								tickvals: plots[i].rows.y,
+								ticktext: plots[i].rows.y,
+								tickfont: layoutParams.tickFont
+							},
+							margin: layoutParams.margin,
+							height: layoutParams.height,
+							width: layoutParams.width
+						};
+						plots[i].rows.colorbar = {
+							lenmode: "pixels",
+							len: layoutParams.height - 40 < 100 ? layoutParams.height -40 : 100 
+						}
+						Plotly.newPlot(element[0], [plots[i].rows], layout);
+					}
+				}
+			}
+		});
+	}
+	return {
+		link: linkFunc
+	};
 }]);
 
