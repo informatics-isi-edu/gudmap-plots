@@ -24,7 +24,7 @@ var heatmapApp =
 
     .run(['constants', 'DataUtils', 'ERMrest', 'ErrorService', 'headInjector', 'Session', 'UiUtils', 'UriUtils', '$log', '$rootScope', '$window',
           function runApp(constants, DataUtils, ERMrest, ErrorService, headInjector, Session, UiUtils, UriUtils, $log, $rootScope, $window) {
-	      var context = {};
+		  var context = {};
               context = $rootScope.context = UriUtils.parseURLFragment($window.location, context);
 	      console.log(context);	    
               ERMrest.appLinkFn(UriUtils.appTagToURL);
@@ -93,7 +93,7 @@ var heatmapApp =
 			  } else {
 			      console.log("heatmaps: ", heatmaps);
 			      $rootScope.heatmaps=heatmaps;
-			      $rootScope.heatmapRows = heatmaps[0].rows;			      
+				  $rootScope.heatmapRows = heatmaps[0].rows;
 			  }
 			  return(heatmaps);
 		      };
@@ -106,9 +106,15 @@ var heatmapApp =
 	 ])
 ;
 
-heatmapApp.controller('HeatmapController', function HeatmapController($scope, $http, $q) {
-    heatmapApp.run();
-    
+heatmapApp.controller('HeatmapController', function HeatmapController($scope, $http, $q, $rootScope) {
+	$rootScope.heatmapsLoadedCount = 0;
+	$scope.allHeatmapsLoaded = false;
+	heatmapApp.run();	
+	$scope.showHeatmaps = function(){
+		$scope.$apply(function(){
+			$scope.allHeatmapsLoaded = true;
+		});
+	};    
 });
 
 heatmapApp.factory('HeatmapUtils', function HeatmapUtils() {
@@ -134,7 +140,7 @@ heatmapApp.factory('HeatmapUtils', function HeatmapUtils() {
 	 * 	tickFont: font to be used in labels
 	 * }
 	 */
-	function getLayoutParams(input, longestXTick, lengthY) {
+	function getLayoutParams(input, longestXTick, longestYTick, lengthY) {
 		var height;
 		var yTickAngle;
 		var tMargin = 25, rMargin, bMargin, lMargin;
@@ -159,7 +165,7 @@ heatmapApp.factory('HeatmapUtils', function HeatmapUtils() {
 			rMargin = 20;
 		} else {
 			yTickAngle = 0;
-			lMargin = 80;
+			lMargin = 20 + longestYTick * 7;
 			rMargin = 5;
 		}
 
@@ -195,7 +201,7 @@ heatmapApp.factory('HeatmapUtils', function HeatmapUtils() {
  * <heatmap heatmap-id="{{heatmap.id}}" width=1200 x-tick-angle=50 tick-font-family="Helvetica" tick-font-size=12>
  * </heatmap>
  */
-heatmapApp.directive('heatmap', ['HeatmapUtils', function(HeatmapUtils) {
+heatmapApp.directive('heatmap', ['HeatmapUtils', '$rootScope', function(HeatmapUtils, $rootScope) {
 	function linkFunc(scope, element, attrs) {
 		scope.$watch('heatmaps', function(plots) {
 			console.log("in linkfunc", element, element[0].attributes['heatmap-id'].nodeValue);
@@ -203,6 +209,7 @@ heatmapApp.directive('heatmap', ['HeatmapUtils', function(HeatmapUtils) {
 				for (i=0; i < plots.length; i++) {
 					if (plots[i].id == element[0].attributes['heatmap-id'].nodeValue) {
 						var longestXTick = plots[i].rows.x.reduce(function(a, b) { return a.length > b.length ? a : b;});
+						var longestYTick = plots[i].rows.y.reduce(function(a, b) { return a.length > b.length ? a : b;});
 						var inputParams = {
 							width: typeof attrs.width !== "undefined" ? attrs.width : 1200,
 							xTickAngle: typeof attrs.xTickAngle !== "undefined" ? attrs.xTickAngle : 50,
@@ -211,7 +218,7 @@ heatmapApp.directive('heatmap', ['HeatmapUtils', function(HeatmapUtils) {
 								size: typeof attrs.tickFontSize !== "undefined" ? attrs.tickFontSize : 12
 							}
 						};
-						var layoutParams = HeatmapUtils.getLayoutParams(inputParams, longestXTick.length, plots[i].rows.y.length);
+						var layoutParams = HeatmapUtils.getLayoutParams(inputParams, longestXTick.length, longestYTick.length, plots[i].rows.y.length);
 
 						var layout = {
 							title: plots[i].title,
@@ -235,7 +242,12 @@ heatmapApp.directive('heatmap', ['HeatmapUtils', function(HeatmapUtils) {
 							lenmode: "pixels",
 							len: layoutParams.height - 40 < 100 ? layoutParams.height -40 : 100 
 						}
-						Plotly.newPlot(element[0], [plots[i].rows], layout);
+						Plotly.newPlot(element[0], [plots[i].rows], layout).then(function(){
+							$rootScope.heatmapsLoadedCount++;
+							if($rootScope.heatmapsLoadedCount == this){
+								scope.showHeatmaps();
+							}
+						}.bind(plots.length));
 					}
 				}
 			}
