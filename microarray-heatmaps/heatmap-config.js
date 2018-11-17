@@ -13,8 +13,8 @@ var heatmapConfig = {
     },
     presentation:{
         width: 1200,
-        xTickAngle: 50,
-        tickFontFamily: "Courier",
+        xTickAngle: 90,
+        tickFontFamily: "Lucida Console",
         tickFontSize: 12
     }
 };
